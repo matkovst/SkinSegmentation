@@ -9,6 +9,12 @@ where skin likelihood and nonskin likelihood were estimated by GMM (GMM paramete
 
 The code can be launched both on CPU and GPU.
 
+
+Original             |  Segmented
+:-------------------------:|:-------------------------:
+![](https://github.com/matkovst/SkinSegmentation/blob/master/data/orig.jpg)  |  ![](https://github.com/matkovst/SkinSegmentation/blob/master/data/result_gpu.jpg)
+
+
 ## Requirements
 - OpenCV 4.1.2
 - (*optional*) OpenMP 2.0
