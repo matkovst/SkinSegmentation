@@ -169,6 +169,12 @@ int run_image_gpu(int argc, char** argv)
         return -1;
     }
 
+    /* Measure GPU time */
+    float elapsedTime;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
     std::cout << "[INFO] Skin segmentation started on image." << std::endl;
 
     /* Load image */
@@ -216,9 +222,13 @@ int run_image_gpu(int argc, char** argv)
     int grid_y = floor((height + blockDim.y - 1) / blockDim.y);
     dim3 gridDim(grid_x, grid_y);
 
+    cudaEventRecord(start, 0);
     segment_skin_gpu<<<gridDim, blockDim>>>(d_imdata, d_imout, width, height);
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
+    printf("[INFO] Image elapsed: %3.1f ms\n", elapsedTime);
 
-    cudaDeviceSynchronize();
     cudaMemcpy(h_imout, d_imout, out_imsize, cudaMemcpyDeviceToHost);
     
     /* Save result */
@@ -230,14 +240,10 @@ int run_image_gpu(int argc, char** argv)
 
     /* Cleanup */
     free(h_imout);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     cudaFree(d_imdata);
     cudaFree(d_imout);
-    cudaFree(d_Skin_Mus);
-    cudaFree(d_Skin_Sigmas);
-    cudaFree(d_Skin_Ws);
-    cudaFree(d_Nonskin_Mus);
-    cudaFree(d_Nonskin_Sigmas);
-    cudaFree(d_Nonskin_Ws);
 
     std::cout << "[INFO] Skin segmentation finished on image." << std::endl;
     return 0;
@@ -249,6 +255,12 @@ int run_stream_gpu(int argc, char** argv)
     {
         return -1;
     }
+
+    /* Measure GPU time */
+    float elapsedTime;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     
     std::cout << "[INFO] Skin segmentation started on stream." << std::endl;
 
@@ -325,11 +337,12 @@ int run_stream_gpu(int argc, char** argv)
         float *h_imdata = frame.ptr<float>();
         cudaMemcpy(d_imdata, h_imdata, imsize, cudaMemcpyHostToDevice);
 
-        clock_t start = clock();
+        cudaEventRecord(start, 0);
         segment_skin_gpu<<<gridDim, blockDim>>>(d_imdata, d_imout, width, height);
-        clock_t end = clock();
-        double elapsed = double(end - start);
-        std::cout << '\r' << "[INFO] Stream Elapsed: " << elapsed << std::flush;
+        cudaEventRecord(stop, 0);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&elapsedTime, start, stop);
+        std::cout << "\r[INFO] Stream elapsed: " << elapsedTime << " ms" << std::flush;
 
         cudaDeviceSynchronize();
         cudaMemcpy(h_imout, d_imout, out_imsize, cudaMemcpyDeviceToHost);
@@ -352,14 +365,10 @@ int run_stream_gpu(int argc, char** argv)
     
     /* Cleanup */
     free(h_imout);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     cudaFree(d_imdata);
     cudaFree(d_imout);
-    cudaFree(d_Skin_Mus);
-    cudaFree(d_Skin_Sigmas);
-    cudaFree(d_Skin_Ws);
-    cudaFree(d_Nonskin_Mus);
-    cudaFree(d_Nonskin_Sigmas);
-    cudaFree(d_Nonskin_Ws);
 
     std::cout << "[INFO] Skin segmentation finished on stream." << std::endl;
     return 0;
