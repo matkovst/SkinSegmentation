@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
-project( SkinSegmentation )
+project(SkinSegmentation)
 
-option(USE_CUDA "Use CUDA" ON)
+set(CPU_PROJECT_NAME SkinSegmentation_cpu)
+set(GPU_PROJECT_NAME SkinSegmentation_cuda)
+
+option(USE_CUDA "Use CUDA" OFF)
 
 file(GLOB HEADERS "${CMAKE_SOURCE_DIR}/src/*.h")
 file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
@@ -10,13 +13,16 @@ if(USE_CUDA)
 endif()
 
 # OpenMP
-find_package( OpenMP )
+find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
     add_compile_definitions(WITH_OPENMP)
 endif()
 
 # OpenCV
-find_package( OpenCV REQUIRED COMPONENTS core imgproc videoio highgui )
+if (DEFINED ENV{OpenCV_DIR} AND NOT OpenCV_DIR)
+    set(OpenCV_DIR $ENV{OpenCV_DIR})
+endif()
+find_package(OpenCV REQUIRED HINTS ${OpenCV_DIR} COMPONENTS core imgproc videoio highgui)
 
 # CUDA
 include(CheckLanguage)

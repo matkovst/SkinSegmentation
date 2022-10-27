@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 #include <iostream>
-#include <cmath>
 #include "omp.h"
 
 #include <opencv2/core.hpp>

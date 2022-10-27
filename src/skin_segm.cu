@@ -1,8 +1,7 @@
-#pragma once
-
 #include "skin_segm.h"
 
 #define THREADS_PER_BLOCK 16 // max 32
+#define TWOPI 6.2831853f
 
 __constant__ float d_Skin_Mus[16][3];
 __constant__ float d_Skin_Sigmas[16][3];
@@ -10,6 +9,8 @@ __constant__ float d_Skin_Ws[16];
 __constant__ float d_Nonskin_Mus[16][3];
 __constant__ float d_Nonskin_Sigmas[16][3];
 __constant__ float d_Nonskin_Ws[16];
+__constant__ float d_Skin_Prior { 30.0f/100.0f };
+__constant__ float d_Nonskin_Prior { 70.0f/100.0f };
 
 
 bool cuda_available()
@@ -72,8 +73,8 @@ __device__ float nonskin_likelihood_gpu(const float pixel[3])
 
 __device__ float segment_skin_gpu(const float pixel[3])
 {
-    float skin_prob = skin_likelihood_gpu(pixel) * SKIN_PRIOR;
-    float nonskin_prob = nonskin_likelihood_gpu(pixel) * NONSKIN_PRIOR;
+    float skin_prob = skin_likelihood_gpu(pixel) * d_Skin_Prior;
+    float nonskin_prob = nonskin_likelihood_gpu(pixel) * d_Nonskin_Prior;
     float denom = skin_prob + nonskin_prob;
     if (denom == 0)
     {
@@ -107,8 +108,8 @@ __global__ void segment_skin_gpu(float* d_imdata, float* d_out, const int width,
 
 __global__ void segment_skin_pixel_gpu(const float pixel[3], float* out)
 {
-    float skin_prob = skin_likelihood_gpu(pixel) * 30/100.0f;
-    float nonskin_prob = nonskin_likelihood_gpu(pixel) * 70/100.0f;
+    float skin_prob = skin_likelihood_gpu(pixel) * d_Skin_Prior;
+    float nonskin_prob = nonskin_likelihood_gpu(pixel) * d_Nonskin_Prior;
     float denom = skin_prob + nonskin_prob;
     if (denom == 0)
     {
@@ -353,7 +354,7 @@ int run_stream_gpu(int argc, char** argv)
 
         cv::imshow(WINDOW_NAME, out);
         char c = (char)cv::waitKey(10);
-        if( c == 27 || cv::getWindowProperty(WINDOW_NAME, cv::WND_PROP_VISIBLE) < 1 )
+        if( c == 27)
         {
             break;
         }
