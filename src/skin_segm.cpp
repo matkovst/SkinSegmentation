@@ -40,11 +40,11 @@ float segmentSkinPixel(const float pixel[3])
 {
     const float skinProb = skinLikelihood(pixel) * SkinPrior;
     const float nonskinProb = nonskinLikelihood(pixel) * NonskinPrior;
-    const float denom = skinProb + nonskinProb;
-    if (denom == 0.0f)
+    const float evidence = skinProb + nonskinProb;
+    if (evidence == 0.0f)
         return 0.0f;
     else
-        return skinProb / denom;
+        return skinProb / evidence;
 }
 
 
@@ -88,56 +88,60 @@ void _experimental_segment_skin_opencv(const cv::Mat& img, cv::Mat& out)
     int w = img.cols;
     int h = img.rows;
 
-    // Compute skin likelihood
-    cv::Mat skinLikelihood;
+    // Compute skin and non-skin likelihood
+    cv::Mat skinLikelihood = cv::Mat::zeros(img.size(), CV_32F);
+    cv::Mat nonskinLikelihood = cv::Mat::zeros(img.size(), CV_32F);
     for (int mode = 0; mode < 16; ++mode)
     {
-        cv::Mat meanDiff;
-        cv::subtract(
-            img, cv::Scalar(Skin_Mus[mode][0], Skin_Mus[mode][1], Skin_Mus[mode][2]), meanDiff, 
-            cv::noArray(), CV_32FC3);
-        cv::Mat scaledMeanDiff;
-        cv::multiply(
-            meanDiff, 
-            cv::Scalar(PrecomputedSkin_Precisions[mode][0], PrecomputedSkin_Precisions[mode][1], PrecomputedSkin_Precisions[mode][2]), 
-            scaledMeanDiff, 
-            1.0, CV_32FC3);
-        cv::Mat meanDiff2;
-        cv::multiply(scaledMeanDiff, meanDiff, meanDiff2, 1.0, CV_32FC3);
-        cv::Mat expArg;
-        cv::transform(meanDiff2, expArg, cv::Matx13f(-0.5f, -0.5f, -0.5f));
+        {
+            cv::Mat meanDiff2;
+            cv::subtract(
+                img, cv::Scalar(Skin_Mus[mode][2], Skin_Mus[mode][1], Skin_Mus[mode][0]), meanDiff2, 
+                cv::noArray(), CV_32FC3);
+            cv::pow(meanDiff2, 2, meanDiff2);
+            cv::Mat scaledMeanDiff;
+            cv::multiply(
+                meanDiff2, 
+                cv::Scalar(PrecomputedSkin_Precisions[mode][2], PrecomputedSkin_Precisions[mode][1], PrecomputedSkin_Precisions[mode][0]), 
+                scaledMeanDiff, 
+                1.0, CV_32FC3);
+            cv::Mat expArg;
+            cv::transform(scaledMeanDiff, expArg, cv::Matx13f(-0.5f, -0.5f, -0.5f));
 
-        cv::Mat e;
-        cv::exp(expArg, e);
-        cv::multiply(e, 1.0f / PrecomputedSkin_GaussCoeff[mode], skinLikelihood, SkinPrior, CV_32F);
+            cv::Mat e;
+            cv::exp(expArg, e);
+            cv::Mat localSkinLikelihood;
+            cv::multiply(e, 1.0f / PrecomputedSkin_GaussCoeff[mode], localSkinLikelihood, 1.0, CV_32F);
+            skinLikelihood += localSkinLikelihood;
+        }
+
+        {
+            cv::Mat meanDiff2;
+            cv::subtract(
+                img, cv::Scalar(Nonskin_Mus[mode][2], Nonskin_Mus[mode][1], Nonskin_Mus[mode][0]), meanDiff2, 
+                cv::noArray(), CV_32FC3);
+            cv::pow(meanDiff2, 2, meanDiff2);
+            cv::Mat scaledMeanDiff;
+            cv::multiply(
+                meanDiff2, 
+                cv::Scalar(PrecomputedNonskin_Precisions[mode][2], PrecomputedNonskin_Precisions[mode][1], PrecomputedNonskin_Precisions[mode][0]), 
+                scaledMeanDiff, 
+                1.0, CV_32FC3);
+            cv::Mat expArg;
+            cv::transform(scaledMeanDiff, expArg, cv::Matx13f(-0.5f, -0.5f, -0.5f));
+
+            cv::Mat e;
+            cv::exp(expArg, e);
+            cv::Mat localNonskinLikelihood;
+            cv::multiply(e, 1.0f / PrecomputedNonskin_GaussCoeff[mode], localNonskinLikelihood, 1.0, CV_32F);
+            nonskinLikelihood += localNonskinLikelihood;
+        }
     }
+    skinLikelihood *= SkinPrior;
+    nonskinLikelihood *= NonskinPrior;
 
-    // Compute non-skin likelihood
-    cv::Mat nonskinLikelihood;
-    for (int mode = 0; mode < 16; ++mode)
-    {
-        cv::Mat meanDiff;
-        cv::subtract(
-            img, cv::Scalar(Nonskin_Mus[mode][0], Nonskin_Mus[mode][1], Nonskin_Mus[mode][2]), meanDiff, 
-            cv::noArray(), CV_32FC3);
-        cv::Mat scaledMeanDiff;
-        cv::multiply(
-            meanDiff, 
-            cv::Scalar(PrecomputedNonskin_Precisions[mode][0], PrecomputedNonskin_Precisions[mode][1], PrecomputedNonskin_Precisions[mode][2]), 
-            scaledMeanDiff, 
-            1.0, CV_32FC3);
-        cv::Mat meanDiff2;
-        cv::multiply(scaledMeanDiff, meanDiff, meanDiff2, 1.0, CV_32FC3);
-        cv::Mat expArg;
-        cv::transform(meanDiff2, expArg, cv::Matx13f(-0.5f, -0.5f, -0.5f));
-
-        cv::Mat e;
-        cv::exp(expArg, e);
-        cv::multiply(e, 1.0f / PrecomputedNonskin_GaussCoeff[mode], nonskinLikelihood, NonskinPrior, CV_32F);
-    }
-
-    cv::Mat denom = skinLikelihood + nonskinLikelihood;
-    out = skinLikelihood / denom;
+    cv::Mat evidence = skinLikelihood + nonskinLikelihood;
+    out = skinLikelihood / evidence;
 }
 
 
